@@ -2,13 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getNewHireByToken, getTasks, getTaskCompletions } from '@/lib/supabase';
 import { NewHire, Task, TaskCompletion, TaskWithCompletion } from '@/types';
 import TaskItem from '@/components/TaskItem';
 import Header from '@/components/Header';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const Checklist = () => {
   const { token } = useParams<{ token: string }>();
@@ -30,23 +30,41 @@ const Checklist = () => {
       try {
         console.log('Fetching new hire with token:', token);
         
-        // Fetch new hire data
-        const hireData = await getNewHireByToken(token);
-        console.log('New hire data response:', hireData);
-        
-        if (!hireData) {
-          console.error('New hire not found for token:', token);
-          setError('New hire not found. The link may be invalid or expired.');
+        // Get new hire with token
+        const { data: hireData, error: hireError } = await supabase
+          .from('new_hires')
+          .select('*')
+          .eq('unique_token', token)
+          .maybeSingle();
+          
+        if (hireError) {
+          console.error('Error fetching new hire:', hireError);
+          setError('Error connecting to HR system. Please try again later.');
           setIsLoading(false);
           return;
         }
         
+        if (!hireData) {
+          console.error('New hire not found for token:', token);
+          setError('Your onboarding profile was not found. Please contact HR for assistance.');
+          setIsLoading(false);
+          return;
+        }
+        
+        console.log('Successfully found new hire:', hireData);
         setNewHire(hireData);
-        console.log('Successfully set new hire:', hireData.name);
 
-        // Fetch tasks
-        const tasksData = await getTasks();
-        console.log('Tasks data:', tasksData);
+        // Get all tasks
+        const { data: tasksData, error: tasksError } = await supabase
+          .from('tasks')
+          .select('*');
+          
+        if (tasksError) {
+          console.error('Error fetching tasks:', tasksError);
+          setError('Unable to load onboarding tasks. Please try again later.');
+          setIsLoading(false);
+          return;
+        }
         
         if (!tasksData || tasksData.length === 0) {
           console.warn('No tasks found in the database');
@@ -55,10 +73,16 @@ const Checklist = () => {
           return;
         }
 
-        // Fetch task completions
-        console.log('Fetching completions for new hire ID:', hireData.id);
-        const completionsData = await getTaskCompletions(hireData.id);
-        console.log('Completions data:', completionsData);
+        // Get task completions for this new hire
+        const { data: completionsData, error: completionsError } = await supabase
+          .from('task_completions')
+          .select('*')
+          .eq('new_hire_id', hireData.id);
+          
+        if (completionsError) {
+          console.error('Error fetching completions:', completionsError);
+          // Continue with empty completions rather than failing
+        }
         
         // Combine tasks with completion status
         const tasksWithCompletion: TaskWithCompletion[] = tasksData.map((task: Task) => {
@@ -73,7 +97,6 @@ const Checklist = () => {
         });
         
         setTasks(tasksWithCompletion);
-        console.log('Tasks with completion set:', tasksWithCompletion.length);
         
         // Calculate progress
         const completedCount = tasksWithCompletion.filter(t => t.completed).length;
@@ -82,7 +105,7 @@ const Checklist = () => {
         
       } catch (err: any) {
         console.error('Error fetching data:', err);
-        setError(`An error occurred: ${err.message || 'Unknown error'}`);
+        setError(`Unable to connect to HR system. Please try again later or contact support.`);
       } finally {
         setIsLoading(false);
       }
@@ -115,19 +138,25 @@ const Checklist = () => {
         <div className="flex-1 flex items-center justify-center p-6">
           <Card className="w-full max-w-md glass-card">
             <CardHeader>
-              <CardTitle className="text-2xl font-bold text-center">Error</CardTitle>
+              <CardTitle className="text-2xl font-bold text-center">Connection Error</CardTitle>
               <CardDescription className="text-center flex flex-col items-center gap-2">
                 <AlertCircle className="h-10 w-10 text-destructive mb-2" />
-                {error || 'Invalid or expired checklist link'}
+                {error || 'Unable to connect to HR system'}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-4">
               <p className="text-center text-muted-foreground">
-                Please contact your HR representative to get a new onboarding link.
+                Please contact your HR representative at:
               </p>
+              <a 
+                href="mailto:himangshupronoy@aol.com" 
+                className="text-primary hover:text-primary/90 transition-colors font-medium"
+              >
+                himangshupronoy@aol.com
+              </a>
               <Link 
                 to="/" 
-                className="text-primary hover:text-primary/90 transition-colors"
+                className="text-primary/80 hover:text-primary transition-colors mt-4"
               >
                 Return to home page
               </Link>
@@ -178,7 +207,7 @@ const Checklist = () => {
           <Card className="glass-card text-center p-8 animate-slide-in" style={{ animationDelay: '200ms' }}>
             <CardContent>
               <p className="text-muted-foreground">
-                No tasks have been assigned yet. Check back later.
+                No tasks have been assigned yet. Check back later or contact HR.
               </p>
             </CardContent>
           </Card>

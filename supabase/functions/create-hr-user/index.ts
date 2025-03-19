@@ -47,7 +47,11 @@ serve(async (req) => {
       email: email.toLowerCase().trim(),
       password: userPassword,
       email_confirm: true, // Auto-confirm email
-      user_metadata: { full_name: name }
+      user_metadata: { 
+        full_name: name,
+        is_first_login: true, // Flag to indicate first login
+        verification_email: email.toLowerCase().trim() // Store email for verification matching
+      }
     });
 
     if (createUserError) {

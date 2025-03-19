@@ -174,20 +174,7 @@ export const getNewHireByVerificationCode = async (code: string, email: string) 
     
     console.log('Fetching new hire with verification code:', normalizedCode, 'and email:', normalizedEmail);
     
-    // Test connection with a simple query first
-    try {
-      const { error: testError } = await supabase.from('new_hires').select('count(*)', { count: 'exact', head: true });
-      if (testError) {
-        console.error('Supabase connection test error:', testError);
-        throw new Error('Database connection failed. Please try again later.');
-      }
-      console.log('Database connection successful.');
-    } catch (connErr) {
-      console.error('Connection test failed:', connErr);
-      throw new Error('Unable to connect to database. Please try again later.');
-    }
-    
-    // Now perform the actual verification query
+    // Direct query approach without additional testing
     const { data, error } = await supabase
       .from('new_hires')
       .select('*')
@@ -195,19 +182,11 @@ export const getNewHireByVerificationCode = async (code: string, email: string) 
       .eq('email', normalizedEmail)
       .maybeSingle();
     
-    console.log('Query response:', { data, error });
-    
     if (error) {
       console.error('Error fetching new hire:', error);
       throw error;
     }
     
-    if (!data) {
-      console.log('No new hire found with code:', normalizedCode, 'and email:', normalizedEmail);
-      return null;
-    }
-    
-    console.log('New hire data found:', data);
     return data;
   } catch (error: any) {
     console.error('getNewHireByVerificationCode error:', error);
@@ -314,3 +293,4 @@ export const updateTaskCompletion = async (
     throw error;
   }
 };
+
